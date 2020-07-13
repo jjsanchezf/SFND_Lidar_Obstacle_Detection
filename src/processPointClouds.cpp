@@ -308,6 +308,7 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
 }
 
 
+
 template<typename PointT>
 std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::Clustering(typename pcl::PointCloud<PointT>::Ptr cloud, float clusterTolerance, int minSize, int maxSize)
 {
@@ -316,31 +317,31 @@ std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::C
 	auto startTime = std::chrono::steady_clock::now();
 
 	std::vector<typename pcl::PointCloud<PointT>::Ptr> clusters;
-	std::vector<std::vector<float>> pointS;
 
-	KdTree* tree = new KdTree;
-	for (int i = 0; i < cloud->points.size(); i++)
-	{
-		pointS.push_back(std::vector<float> {cloud->points[i].x, cloud->points[i].y, cloud->points[i].z});
-		tree->insert(std::vector<float> {cloud->points[i].x, cloud->points[i].y, cloud->points[i].z}, i);
-	}
+	typename pcl::search::KdTree<PointT>::Ptr search_tree(new pcl::search::KdTree<PointT>);
+	search_tree->setInputCloud(cloud);
 
-	std::vector<std::vector<int>> clusterIndices = euclideanCluster(pointS, tree, clusterTolerance, minSize, maxSize);
+	std::vector<pcl::PointIndices> cluster_indices;
+	pcl::EuclideanClusterExtraction<PointT> ec;
 
-	for (auto clusterIndex : clusterIndices)
-	{
-		typename pcl::PointCloud<PointT>::Ptr cloudCluster(new pcl::PointCloud<PointT>);
+	ec.setClusterTolerance(clusterTolerance);
+	ec.setMinClusterSize(minSize);
+	ec.setMaxClusterSize(maxSize);
+	ec.setSearchMethod(search_tree);
+	ec.setInputCloud(cloud);
+	ec.extract(cluster_indices);
 
-		for (auto pointIndex : clusterIndex)
-		{
-			cloudCluster->points.push_back(cloud->points[pointIndex]);
+	for (auto index_obj : cluster_indices) {
+
+		typename pcl::PointCloud<PointT>::Ptr cloud_cluster(new pcl::PointCloud<PointT>);
+
+		for (int index : index_obj.indices) {
+			cloud_cluster->points.push_back(cloud->points[index]); //*
 		}
-		cloudCluster->width = cloudCluster->points.size();
-		cloudCluster->height = 1;
-		cloudCluster->is_dense = true;
-
-		clusters.push_back(cloudCluster);
-
+		cloud_cluster->width = cloud_cluster->points.size();
+		cloud_cluster->height = 1;
+		cloud_cluster->is_dense = true;
+		clusters.push_back(cloud_cluster);
 	}
 
 	auto endTime = std::chrono::steady_clock::now();
